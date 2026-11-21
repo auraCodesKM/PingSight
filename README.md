@@ -1,7 +1,21 @@
+<div align="center">
+
 # PingSight
 
 **Recovers metric 3D ball trajectories, bounce events and landing zones from a single broadcast camera, run across 519
 World Tour broadcast clips.**
+
+[![built on: Kienzle et al. · WACV 2026](https://img.shields.io/badge/built%20on-Kienzle%20et%20al.%20%C2%B7%20WACV%202026-B31B1B)](https://github.com/KieDani/UpliftingTableTennis)
+![clips: 519 World Tour](https://img.shields.io/badge/clips-519%20World%20Tour-2E7D32)
+
+![Python: 3.10](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)
+![PyTorch: 2.6](https://img.shields.io/badge/PyTorch-2.6-EE4C2C?logo=pytorch&logoColor=white)
+![CUDA: 12.4](https://img.shields.io/badge/CUDA-12.4-76B900?logo=nvidia&logoColor=white)
+![OpenCV: 4.10](https://img.shields.io/badge/OpenCV-4.10-5C3EE8?logo=opencv&logoColor=white)
+![SciPy: least squares](https://img.shields.io/badge/SciPy-least%20squares-8CAAE6?logo=scipy&logoColor=white)
+![MuJoCo: 3.3](https://img.shields.io/badge/MuJoCo-3.3-00B4D8)
+
+</div>
 
 PingSight takes an ordinary monocular table-tennis broadcast and produces the ball's 3D flight arc in metres, every
 bounce and racket hit, and which of 18 table zones each bounce landed in. No multi-camera rig, markers or sensors.
