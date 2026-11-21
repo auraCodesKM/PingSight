@@ -1,187 +1,117 @@
 # Pipeline Flow Diagrams — PingSight
 
-## Full Pipeline: Video to Report
+## Full Pipeline: Video to Analytics
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          INPUT STAGE                                     │
-│                                                                          │
-│   training_session.mp4                                                   │
-│   [Resolution: any]  [FPS: 25-120]  [Format: MP4]                       │
+│                              INPUT STAGE                                 │
+│   rally_clip.mp4   (single broadcast camera)                             │
 └───────────────────────────────────┬─────────────────────────────────────┘
                                     │
                           ┌─────────▼─────────┐
-                          │  Frame Extraction  │
-                          │  OpenCV decode     │
-                          │  Resize → 1920×1080│
+                          │  Frame decode      │
+                          │  OpenCV            │
                           └─────────┬──────────┘
                                     │
                     ┌───────────────┴───────────────┐
                     │                               │
           ┌─────────▼──────────┐       ┌────────────▼──────────┐
           │  BALL DETECTION    │       │  TABLE DETECTION       │
-          │                    │       │                        │
           │  Input: triplet    │       │  Input: triplet        │
-          │  [t-1, t, t+1]     │       │  [t-1, t, t+1]         │
-          │                    │       │                        │
-          │  Model A (primary) │       │  Model A (primary)     │
-          │  Model B (aux)     │       │  Model B (auxiliary)   │
-          │  Ensemble fusion   │       │  Keypoint clustering   │
-          │                    │       │                        │
-          │  Output: (u,v,conf)│       │  Output: 13 keypoints  │
+          │  SegFormer++ B2    │       │  SegFormer++ B2        │
+          │  + WASB            │       │  + HRNet               │
+          │  agree ≤ 20 px     │       │  13 kps · DBSCAN       │
           └─────────┬──────────┘       └────────────┬──────────┘
                     │                               │
-          ┌─────────▼──────────┐       ┌────────────▼──────────┐
-          │  DBSCAN FILTERING  │       │  CAMERA CALIBRATION   │
-          │  Temporal window   │       │                        │
-          │  Outlier removal   │       │  DLT initialization   │
-          │                    │       │  LM refinement         │
-          │  Output: cleaned   │       │                        │
-          │  (frame, u, v)     │       │  Output: P (3×4)       │
-          └─────────┬──────────┘       └────────────┬──────────┘
+                    │               ┌───────────────▼──────────┐
+                    │               │  CALIBRATION             │
+                    │               │  DLT → LM → RANSAC       │
+                    │               │  camera geometry gate    │
+                    │               └───────────────┬──────────┘
                     │                               │
-                    └───────────────┬───────────────┘
+          ┌─────────▼───────────────────────────────▼──────────┐
+          │  CONTACTS                                          │
+          │  despike (> 5 m jump) → image-height extrema       │
+          │  footprint test ±1 frame → bounce / hit            │
+          └─────────────────────────┬──────────────────────────┘
                                     │
-                          ┌─────────▼──────────┐
-                          │  3D UPLIFTING       │
-                          │                    │
-                          │  Inputs combined:  │
-                          │  2D detections     │
-                          │  + Camera matrix P │
-                          │                    │
-                          │  BallEmbedding     │
-                          │  TableEmbedding    │
-                          │  RotaryPosEmb      │
-                          │                    │
-                          │  Transformer (×4)  │
-                          │                    │
-                          │  Stage 1: XYZ      │
-                          │  Stage 2: +delta   │
-                          │  Stage 3: Spin     │
-                          │                    │
-                          │  Output:           │
-                          │  (x,y,z,s_top,     │
-                          │   s_side) / frame  │
-                          └─────────┬──────────┘
-                                    │
-                    ┌───────────────┼───────────────┐
-                    │               │               │
-          ┌─────────▼──────┐ ┌──────▼──────┐ ┌─────▼────────┐
-          │BOUNCE DETECTOR │ │ ZONE CLASS. │ │RALLY SEGMENT.│
-          │                │ │             │ │              │
-          │ Z < TABLE_H+ε  │ │ (x,y) → 18  │ │ Stroke detect│
-          │ Local minimum  │ │ zone labels │ │ Point ends   │
-          │ Min gap check  │ │             │ │              │
-          └─────────┬──────┘ └──────┬──────┘ └─────┬────────┘
-                    │               │               │
-                    └───────────────┼───────────────┘
-                                    │
-                          ┌─────────▼──────────┐
-                          │  TEMPORAL PATTERN  │
-                          │  AGGREGATOR        │
-                          │                    │
-                          │  Bounce triplets   │
-                          │  Transition matrix │
-                          │  Zone heatmap      │
-                          │  Spin distribution │
-                          └─────────┬──────────┘
+          ┌─────────────────────────▼──────────────────────────┐
+          │  PHYSICS FIT                                       │
+          │  Z(t) parabola per arc, all arcs solved jointly    │
+          │  X,Y from camera ray · height prior from the       │
+          │  learned uplifting model · per-arc XY smoothing    │
+          └─────────────────────────┬──────────────────────────┘
                                     │
                     ┌───────────────┴───────────────┐
                     │                               │
-          ┌─────────▼──────────┐       ┌────────────▼──────────┐
-          │  COACHING AGENT    │       │  VISUALIZER            │
-          │                    │       │                        │
-          │  Query construction│       │  Frame annotation      │
-          │  Vector retrieval  │       │  3D subplot            │
-          │  LLM synthesis     │       │  Zone overlay          │
-          │                    │       │  Comet trail           │
-          │  Output:           │       │                        │
-          │  coaching_report   │       │  Output:               │
-          └────────────────────┘       │  analysis.mp4          │
-                                       │  analysis.gif          │
-                                       │  heatmap.png           │
-                                       └────────────────────────┘
+          ┌─────────▼──────────┐       ┌────────────▼───────────┐
+          │  ANALYTICS          │       │  VISUALIZER            │
+          │  18-zone classifier │       │  annotated frames      │
+          │  prev / curr / next │       │  3D trajectory plot    │
+          │  physics audit      │       │  MP4 · slow-motion GIF │
+          │  Output:            │       │                        │
+          │  trajectory.csv     │       │                        │
+          │  events.json        │       │                        │
+          └────────────────────┘       └────────────────────────┘
 ```
 
 ---
 
-## Synthetic Data Generation Pipeline
+## Synthetic Data Generation (uplifting model)
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                   MUJOCO SIMULATION                           │
 │                                                               │
-│  Config parameters:                                           │
 │  ┌────────────────┐  ┌─────────────────┐  ┌───────────────┐  │
-│  │ Ball physics   │  │ Initial state   │  │ Camera config │  │
-│  │ mass, radius   │  │ position (x,y,z)│  │ position, FOV │  │
-│  │ restitution    │  │ velocity (3D)   │  │ orientation   │  │
-│  │ friction       │  │ spin (3D)       │  │ focal length  │  │
+│  │ Ball physics   │  │ Initial state   │  │ Virtual camera│  │
+│  │ gravity, drag  │  │ position        │  │ azimuth       │  │
+│  │ spin, bounces  │  │ velocity, spin  │  │ elevation     │  │
+│  │                │  │                 │  │ distance      │  │
 │  └────────────────┘  └─────────────────┘  └───────────────┘  │
 │                ↓                ↓                ↓            │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │              Physics Simulation Loop                     │  │
-│  │                                                          │  │
-│  │  For each timestep (1/1000s):                           │  │
-│  │    1. Apply gravity: F_grav = m × 9.81 downward         │  │
-│  │    2. Apply Magnus: F_mag = C_L × (ω × v)              │  │
-│  │    3. Integrate acceleration → velocity → position      │  │
-│  │    4. Check bounce: if Z ≤ TABLE_H → apply restitution  │  │
-│  │    5. Record state [x, y, z, ω_x, ω_y, ω_z]           │  │
-│  │    6. Break if out-of-bounds                            │  │
+│  │  Simulate flight → 3D trajectory with exact labels       │  │
 │  └─────────────────────────────────────────────────────────┘  │
 │                              ↓                                │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │              Camera Projection                           │  │
-│  │  3D position → project via P → 2D pixel coord           │  │
-│  │  Optional: + Gaussian noise σ ~ N(0, 1.5px)            │  │
+│  │  Project through the virtual camera → 2D sequence        │  │
 │  └─────────────────────────────────────────────────────────┘  │
 │                              ↓                                │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │              Dataset Export                              │  │
-│  │  [(2D_seq, 3D_ground_truth, spin_ground_truth)]         │  │
-│  │  50,000+ trajectories per run                           │  │
+│  │  Dataset: (2D sequence, table keypoints, 3D trajectory)  │  │
 │  └─────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘
                               ↓
-              Used for pretraining the uplifting transformer
-              before fine-tuning on real annotated data
+              Trains the uplifting transformer, whose output
+              serves as the height prior in the physics fit
 ```
 
 ---
 
-## Training Pipeline
+## Validation Flow
 
 ```
-                    MODEL TRAINING PIPELINE
+                    CHANGE VALIDATION
 
-  Real annotated data                  Synthetic data (MuJoCo)
-  (limited, high quality)              (large scale, perfect labels)
-         │                                       │
-         │                             ┌─────────▼──────────┐
-         │                             │   Pretrain on      │
-         │                             │   Synthetic Data   │
-         │                             │   (Stage 1 + 2)    │
-         │                             └─────────┬──────────┘
-         │                                       │
-         └───────────────┬───────────────────────┘
+     Proposed change (detector, contact rule, gate)
                          │
                ┌─────────▼──────────┐
-               │  Fine-tune on      │
-               │  Real Data         │
-               │  (All 3 stages)    │
+               │  Reference clip     │
+               │  golden regression  │
                └─────────┬──────────┘
                          │
                ┌─────────▼──────────┐
-               │  Evaluation on     │
-               │  Held-out test set │
-               │  (Hawk-Eye GT)     │
+               │  18 human-labelled  │
+               │  event cases        │
                └─────────┬──────────┘
                          │
                ┌─────────▼──────────┐
-               │  TensorBoard       │
-               │  Monitoring        │
-               │  Per-stage losses  │
-               │  Reprojection err  │
+               │  Blind human review │
+               │  of changed clips   │
+               └─────────┬──────────┘
+                         │
+               ┌─────────▼──────────┐
+               │  Adopt or reject    │
                └────────────────────┘
 ```

@@ -1,174 +1,107 @@
-<div align="center">
-
 # PingSight
 
-### End-to-End AI Tactical Analysis for Table Tennis
-**Monocular broadcast video in — 3D trajectory, spin, and strategic coaching insight out.**
+**Recovers metric 3D ball trajectories, bounce events and landing zones from a single broadcast camera, run across 519
+World Tour broadcast clips.**
 
-<br>
+PingSight takes an ordinary monocular table-tennis broadcast and produces the ball's 3D flight arc in metres, every
+bounce and racket hit, and which of 18 table zones each bounce landed in. No multi-camera rig, markers or sensors.
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.6-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.10-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
-![MuJoCo](https://img.shields.io/badge/MuJoCo-3.3-00B4D8?style=for-the-badge)
-![Research](https://img.shields.io/badge/Research-WACV_2026-2ECC71?style=for-the-badge)
+It builds on **Kienzle et al., *Uplifting Table Tennis: A Robust, Real-World Application for 3D Trajectory and Spin
+Estimation* (WACV 2026)**, which provides the ball and table detectors, the camera-calibration code and the learned
+2D→3D uplifting model. On top of that, PingSight adds a physics-first 3D reconstruction, bounce/hit classification, a
+camera geometry gate and zone analytics ([details](#what-pingsight-adds)).
 
-<br>
+This repository presents results, figures and write-ups. Implementation is in a private repository; available on
+request. Built during a TEEP research internship (2026).
 
-</div>
+## Results gallery
 
----
-
-## What is PingSight?
-
-PingSight is a full-stack AI sports analytics pipeline that turns any monocular broadcast recording of a table tennis match into deep tactical intelligence — with no multi-camera rigs, no Hawk-Eye hardware, and no player-worn sensors.
-
-It solves a genuinely hard computer vision problem: a <6-pixel ball travelling at 120 km/h, spinning at up to 130 rps, shot by shot — reconstructed in full 3D from a single camera. That physics data then feeds a tactical analysis engine and an RAG-powered coaching agent.
-
----
-
-## Live Results
-
-### Full Pipeline: Broadcast Video → 3D Trajectory Overlay
-
-> Real WTT broadcast footage (Incheon). The system detects the ball, calibrates the camera from the table geometry, reconstructs the 3D arc, and reprojects the full trajectory back onto the video frame.
-
-<div align="center">
-
-![Full Pipeline Output](assets/demo/full_pipeline_output.png)
-*3D-uplifted trajectory reprojected onto WTT broadcast — Incheon. Green dotted arc shows the recovered ball path.*
-
-</div>
-
----
-
-### Real-Time Zone Analysis: Broadcast Frame + 3D Model
-
-> Split view from the zone-aware pipeline. **Left:** live broadcast with zone classification overlay. **Right:** 3D physics model with the table partitioned into the 9-zone tactical grid, coloured by bounce landing.
-
-<div align="center">
+### Pipeline output frame
 
 ![Annotated Frame with 3D Zone Model](assets/demo/annotated_frame.png)
-*Wang Chuqin vs Tomokazu Harimoto — Fukuoka. Left: broadcast with bounce tracking. Right: 3D zone grid with active landing zone highlighted.*
+*Frame rendered by the pipeline. Left: broadcast with the running reprojection error and previous / current / next
+bounce zone. Right: the table in 3D with the 18-zone grid. WTT Finals Fukuoka, Wang Chuqin vs Tomokazu Harimoto.*
 
-</div>
-
----
-
-### Dual-View 3D Reconstruction
-
-> Broadcast frame alongside the recovered 3D world coordinate plot. Green dots are the 13 detected table keypoints used for camera calibration. The scatter plot shows the ball's 3D positions through the rally.
-
-<div align="center">
+### Broadcast frame and 3D table model
 
 ![Rally 3D Reconstruction](assets/demo/rally_3d_reconstruction.png)
-*Felix Lebrun vs Truls Moregard — WTT Frankfurt. Left: original broadcast. Right: recovered 3D ball positions in world coordinates (meters).*
-
-</div>
-
----
-
-### 3D Trajectory Animations
-
-<div align="center">
-
-| Trajectory Animation | Split-View Animation |
-|:---:|:---:|
-| ![3D Trajectory](assets/demo/3d_trajectory_animation.gif) | ![3D Split Animation](assets/demo/3d_trajectory_split_animation.gif) |
-| *Rotating 3D view of reconstructed ball trajectory. Orange line = flight arc, green dots = table keypoints.* | *Side-by-side: table surface + full 3D trajectory path across a complete rally.* |
-
-</div>
-
----
-
-### Rally Reconstruction GIF
-
-<div align="center">
+*Broadcast frame beside the recovered 3D table: the 13 calibration keypoints (green), the zone grid, and the ball
+position (orange). WTT Champions Frankfurt, Félix Lebrun vs Truls Moregard.*
 
 ![Rally 3D Reconstruction GIF](assets/demo/rally_3d_reconstruction.gif)
-*Animated 3D reconstruction of a rally — WTT Frankfurt. Watch the ball arc recover in real time as frames are processed.*
+*The same view animated over the rally.*
 
-</div>
+### 3D trajectory views
 
----
-
-## Detection Pipeline
-
-### Stage 1 — Ball Detection
-
-<div align="center">
-
-| Raw (Single Model) | Filtered (Dual-Model Ensemble) |
+| Trajectory animation | Split-view animation |
 |:---:|:---:|
-| ![Raw Ball Detections](assets/detection/raw_ball_detections.png) | ![Filtered Ball Detections](assets/detection/filtered_ball_detections.png) |
-| *Single-model raw output — noisy, with some background false positives.* | *After ensemble fusion + DBSCAN temporal filtering. Green/orange dots trace the clean trajectory.* |
+| ![3D Trajectory](assets/demo/3d_trajectory_animation.gif) | ![3D Split Animation](assets/demo/3d_trajectory_split_animation.gif) |
+| *Rotating 3D view of a reconstructed trajectory: flight arc (orange) and table keypoints (green).* | *Frame and 3D trajectory side by side, rendered by the 3D animation script on the example sequence from Kienzle et al.* |
 
-</div>
+![3D Trajectory Visualization](assets/demo/3d_trajectory_visualization.png)
+*Static 3D plot of the same example sequence, rendered by the 3D plotting script.*
 
-### Stage 2 — Table Keypoint Detection
+### Learned uplifting model (Kienzle et al.)
 
-<div align="center">
+![Full Pipeline Output](assets/demo/full_pipeline_output.png)
+*The learned uplifting model's 3D trajectory reprojected onto the example sequence (WTT Incheon), from the upstream
+tutorial run. In PingSight this model provides the height prior for the physics fit.*
 
-| Raw (Single Model) | Filtered (Stable Ensemble) |
-|:---:|:---:|
-| ![Raw Table Keypoints](assets/detection/raw_table_keypoints.png) | ![Filtered Table Keypoints](assets/detection/filtered_table_keypoints.png) |
-| *13 candidate keypoints from a single detector — some noise at occluded corners.* | *After dual-model ensemble clustering — stable keypoints used for camera calibration.* |
-
-</div>
-
----
-
-## 3D Uplifting: From Pixels to World Coordinates
-
-<div align="center">
-
-| 2D Input to Uplifting Model | 3D→2D Reprojection Validation |
+| 2D input to the uplifting model | 3D → 2D reprojection |
 |:---:|:---:|
 | ![2D Input](assets/uplifting/2d_input_to_uplifting.png) | ![2D Reprojection](assets/uplifting/2d_reprojection_from_3d.png) |
-| *All 2D ball detections passed into the Transformer (green dots). WTT Frankfurt — Lebrun vs Moregard, game point.* | *The recovered 3D position reprojected back to 2D for validation. Single green dot = predicted position. Reprojection error < 1.2px.* |
+| *2D ball detections fed to the uplifting model. WTT Champions Frankfurt, Lebrun vs Moregard.* | *Table keypoints (blue) and a 3D ball position reprojected into the image (green).* |
 
-</div>
+### Detection
 
-### Debug Overlay — Full System Combined
+Detectors and the dual-model filter are from Kienzle et al.; these were rendered by the tutorial script on the example
+sequence.
 
-<div align="center">
+| Single model, raw | Two models, filtered |
+|:---:|:---:|
+| ![Raw Ball Detections](assets/detection/raw_ball_detections.png) | ![Filtered Ball Detections](assets/detection/filtered_ball_detections.png) |
+| ![Raw Table Keypoints](assets/detection/raw_table_keypoints.png) | ![Filtered Table Keypoints](assets/detection/filtered_table_keypoints.png) |
 
 ![Debug Overlay](assets/demo/debug_overlay.png)
-*Combined overlay: table keypoints (magenta line), 2D ball detections (green dots), and reconstructed 3D trajectory reprojected back onto the broadcast frame.*
+*Combined overlay: table keypoints (magenta), 2D ball detections (green) and the reconstructed trajectory reprojected onto
+the broadcast frame.*
 
-</div>
+## The problem
 
----
+Broadcast table tennis is filmed by one camera from a different angle at every venue. The ball is a few pixels wide and
+often blurred or hidden by players. Recovering 3D needs the camera's pose, which must be estimated from the table in each
+clip, and depth along a single camera ray is ambiguous.
 
-## Strategic Zone System
+## What it does
 
-<div align="center">
+- Detects the ball and 13 table keypoints in every frame with two models each.
+- Calibrates the camera from the table keypoints and validates the camera geometry before any 3D is produced.
+- Finds contact candidates in the 2D track and classifies each as a table **bounce** or a racket **hit**.
+- Reconstructs 3D with a physics fit: a gravity parabola for height per arc, X/Y from each frame's camera ray.
+- Labels each bounce with one of 18 zones and tracks previous / current / next zone per frame.
+- Writes `trajectory.csv` (x, y, z, zone per frame), `events.json` (bounces with frame, time, position and zone; racket
+  hits with time), `calibration.json`, rendered frames, MP4 and GIF, and a run manifest (commit, model hashes, input
+  hash, GPU).
 
-![Zone Grid](assets/demo/zones.png)
-*The 9-zone tactical grid (per side). Each bounce is mapped to a labeled zone — enabling frequency heatmaps, transition matrices, and coaching pattern detection.*
+## What PingSight adds
 
-</div>
+From Kienzle et al.: the SegFormer++ / WASB ball detectors, the SegFormer++ / HRNet table detectors, the dual-model
+filter, DLT → Levenberg-Marquardt → RANSAC calibration, the uplifting transformer and the MuJoCo data generator.
 
-The table is divided into **18 zones total** (9 per side), named by row and column:
+Added in PingSight:
 
-```
-         LEFT ◄──────────────────────► RIGHT
+| Addition | What it does |
+|---|---|
+| Physics-first 3D reconstruction | Height per arc is a gravity parabola `Z(t) = Z₀ + V_z·t − ½g·t²`; X, Y come from intersecting the camera ray with `z = Z(t)`. Arcs are split at contacts and solved jointly: a bounce pins the height to the table, a racket hit does not. The learned uplifting model supplies the height prior and initial value. |
+| 2D contact detection | Contacts are found on the 2D track (extrema of smoothed image height) before any 3D exists, so bounce finding doesn't depend on the 3D fit it feeds. |
+| Bounce vs hit classification | Accepts a bounce when the ball's table-plane shadow falls inside the table within ±1 frame, with a tolerance from ball radius and calibration residual. |
+| Camera geometry gate | Validates each calibration before use, so 3D is produced only from trustworthy camera geometry. |
+| Metric-space despike | Interpolates detections that jump more than 5 m between steps on the table plane. |
+| Zone analytics | 18 zones (rows c/b/a from the net out, columns 1–3 across), with previous / current / next zone per frame. |
+| Physics audit | Per-run checks: bounces inside the table, consecutive bounces on opposite sides, ball above the net when crossing, never below the table. |
+| Reproducibility | Pinned SHA256-checked model bundle, deterministic cuDNN, a run manifest per clip, and a reference-clip regression test. |
 
-              Col 3    Col 2    Col 1  |  Col 1    Col 2    Col 3
-             ┌────────┬────────┬────────╬────────┬────────┬────────┐
-  BASELINE   │  a3'   │  a2'   │  a1'   ║  a1    │  a2    │  a3    │
-             ├────────┼────────┼────────╬────────┼────────┼────────┤
-  MIDDLE     │  b3'   │  b2'   │  b1'   ║  b1    │  b2    │  b3    │
-             ├────────┼────────┼────────╬────────┼────────┼────────┤
-  NET        │  c3'   │  c2'   │  c1'   ║  c1    │  c2    │  c3    │
-             └────────┴────────┴────────╬────────┴────────┴────────┘
-                    FAR SIDE            ║          NEAR SIDE
-                   (prime zones)        NET
-```
-
----
-
-## System Architecture
+## Architecture
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -182,158 +115,111 @@ The table is divided into **18 zones total** (9 per side), named by row and colu
 │        │  ┌─────────────────────┐  ┌──────────────────────┐ │     │
 │        │  │  Ball Detection     │  │  Table Detection     │ │     │
 │        │  │  Model A + Model B  │  │  Model A + Model B   │ │     │
-│        │  │  → Ensemble fusion  │  │  → 13 keypoints      │ │     │
-│        │  │  → DBSCAN filter    │  │  → per-rally calib   │ │     │
+│        │  │  → agree ≤ 20 px    │  │  → 13 keypoints      │ │     │
+│        │  │                     │  │  → DBSCAN filter     │ │     │
 │        │  └──────────┬──────────┘  └──────────┬───────────┘ │     │
 │        └─────────────┼─────────────────────────┼─────────────┘     │
 │                      │                         │                   │
 │     ▼  ┌─────────────┼─────────────────────────▼─────────────┐    │
 │        │           STAGE 2 — CAMERA CALIBRATION               │    │
-│        │  DLT + Levenberg-Marquardt → P (3×4 matrix)          │    │
+│        │  DLT + Levenberg-Marquardt + RANSAC                   │    │
+│        │  + camera geometry gate                               │    │
 │        └─────────────────────────────────┬────────────────────┘    │
 │                                          │                         │
 │     ▼  ┌─────────────────────────────────▼────────────────────┐    │
-│        │           STAGE 3 — 3D UPLIFTING TRANSFORMER          │    │
-│        │  BallEmb + TableEmb + RotaryPosEmb                    │    │
-│        │  → Transformer Blocks × 4                             │    │
-│        │  → Stage1: coarse XYZ  Stage2: residual  Stage3: spin │    │
+│        │           STAGE 3 — CONTACTS + PHYSICS FIT            │    │
+│        │  2D contact candidates → bounce / hit classification  │    │
+│        │  Z(t) gravity parabola per arc, solved jointly        │    │
+│        │  X,Y = camera ray ∩ plane z = Z(t)                    │    │
+│        │  learned uplifting model → height prior               │    │
 │        └─────────────────────────────────┬────────────────────┘    │
 │                                          │                         │
 │     ▼  ┌─────────────────────────────────▼────────────────────┐    │
 │        │           STAGE 4 — ANALYTICS                          │    │
-│        │  Bounce detection · Zone classification (18 zones)     │    │
-│        │  Rally segmentation · Temporal pattern analysis        │    │
+│        │  Zone classification (18 zones) · prev/curr/next       │    │
+│        │  Physics audit                                         │    │
 │        └──────────────────┬──────────────────┬─────────────────┘    │
 │                           │                  │                      │
 │     ┌─────────────────────▼──┐   ┌───────────▼───────────────┐     │
-│     │   RAG COACHING AGENT   │   │   VISUALIZER              │     │
-│     │  Vector store · LLM    │   │  MP4 · GIF · Heatmaps     │     │
+│     │   DATA                  │   │   VISUALIZER              │     │
+│     │  trajectory.csv         │   │  frames · MP4 · GIF       │     │
+│     │  events.json            │   │  3D trajectory plot       │     │
 │     └────────────────────────┘   └───────────────────────────┘     │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Zone grid
 
-## Processing Pipeline — Step by Step
-
-| Stage | Input | Key Algorithm | Output |
-|---|---|---|---|
-| **1. Ball Detection** | Frame triplet (t-1, t, t+1) | Segformer++ ensemble + DBSCAN temporal filtering | (u, v, confidence) per frame |
-| **2. Table Detection** | Frame triplet | Dual-model keypoint ensemble + clustering | 13 pixel keypoints |
-| **3. Camera Calibration** | 13 pixel ↔ world correspondences | DLT initialisation → Levenberg-Marquardt refinement | 3×4 projection matrix P |
-| **4. 3D Uplifting** | 2D detections + P | Physics-aware Transformer with Rotary Positional Embeddings | (x, y, z, spin) per frame |
-| **5. Bounce Detection** | Z(t) time series | Height threshold + local minimum + physics gap constraint | Bounce frame indices |
-| **6. Zone Classification** | (x, y) at bounce | Coordinate-to-grid mapping | Zone label (e.g. `b2`, `a3'`) |
-| **7. Pattern Analysis** | Zone sequence | Transition matrix + frequency heatmap | Tactical pattern report |
-| **8. Coaching Agent** | Player statistics | RAG retrieval + LLM synthesis | Natural-language coaching report |
-
----
-
-## Tech Stack
-
-<div align="center">
-
-| Layer | Technology | Role |
-|---|---|---|
-| Video I/O | OpenCV 4.10 | Frame decode, encode, annotation |
-| Deep Learning | PyTorch 2.6 + TorchVision | Model training and inference |
-| Ball Detection | Segformer++ (B0/B2) + WASB | Heatmap-based ball localisation |
-| Table Detection | Segformer++ + HRNet + VitPose | 13-keypoint table geometry |
-| 3D Uplifting | Custom Transformer + RoPE | Monocular depth and spin recovery |
-| Camera Geometry | SciPy (DLT + Levenberg-Marquardt) | Projection matrix calibration |
-| Temporal Filtering | Scikit-learn DBSCAN | False positive rejection |
-| Synthetic Data | MuJoCo 3.3.2 | Physics-accurate training trajectories |
-| Coaching Agent | RAG (vector store + LLM) | Strategic insight generation |
-| Visualisation | Matplotlib + Pillow | Trajectory plots, heatmaps, GIFs |
-| Config | OmegaConf + Rich | Hyperparameter management |
-| Tracking | TensorBoard | Training monitoring |
-
-</div>
-
----
-
-## Repository Structure
+![Zone Grid](assets/demo/zones.png)
+*Zone coding reference (substitution table) the grid is based on.*
 
 ```
-PingSight/
-│
-├── README.md
-│
-├── docs/
-│   ├── architecture.md          # Full system design — modules, contracts, deployment
-│   ├── methodology.md           # Algorithms + pseudocode for every stage
-│   ├── design_decisions.md      # 11 architectural trade-offs with rationale
-│   └── data_pipeline.md         # Data formats, stage timing, synthetic pipeline
-│
-├── results/
-│   ├── sample_outputs.md        # Annotated demo outputs — frame layouts, tables, reports
-│   ├── performance_benchmarks.md # Accuracy + speed benchmarks across all modules
-│   └── coaching_report_sample.md # Full example coaching report with drills
-│
-└── assets/
-    ├── demo/                    # Key showcase visuals
-    │   ├── annotated_frame.png          # Zone-aware live frame + 3D model
-    │   ├── full_pipeline_output.png     # End-to-end reprojected trajectory
-    │   ├── rally_3d_reconstruction.png  # Dual-view broadcast + 3D scatter
-    │   ├── rally_3d_reconstruction.gif  # Animated 3D reconstruction
-    │   ├── 3d_trajectory_animation.gif  # Rotating trajectory view
-    │   ├── 3d_trajectory_split_animation.gif
-    │   ├── 3d_trajectory_visualization.png
-    │   ├── zones.png                    # Zone substitution table + grid
-    │   └── debug_overlay.png            # Combined system debug overlay
-    ├── detection/               # Detection pipeline outputs
-    │   ├── raw_ball_detections.png
-    │   ├── filtered_ball_detections.png
-    │   ├── raw_table_keypoints.png
-    │   └── filtered_table_keypoints.png
-    ├── uplifting/               # 3D uplifting stage outputs
-    │   ├── 2d_input_to_uplifting.png
-    │   └── 2d_reprojection_from_3d.png
-    ├── system_architecture.md   # ASCII architecture diagrams
-    ├── zone_grid_diagram.md     # Zone coordinate math + tactical mapping
-    └── pipeline_flow.md         # Data flow + training pipeline diagrams
+                    NEAR SIDE (primed, x < 0)  ║  FAR SIDE (x ≥ 0)
+                                               ║
+              Col 1    Col 2    Col 3          ║          Col 1    Col 2    Col 3
+             ┌────────┬────────┬────────┐      ║      ┌────────┬────────┬────────┐
+  BASELINE   │  a1'   │  a2'   │  a3'   │      ║      │  a1    │  a2    │  a3    │  BASELINE
+             ├────────┼────────┼────────┤      ║      ├────────┼────────┼────────┤
+  MIDDLE     │  b1'   │  b2'   │  b3'   │      ║      │  b1    │  b2    │  b3    │  MIDDLE
+             ├────────┼────────┼────────┤      ║      ├────────┼────────┼────────┤
+  NET        │  c1'   │  c2'   │  c3'   │      ║      │  c1    │  c2    │  c3    │  NET
+             └────────┴────────┴────────┘     NET     └────────┴────────┴────────┘
 ```
 
----
+Rows are thirds of each half by distance from the net (c = next to the net, a = baseline); columns are thirds of the
+width. A bounce outside the table is zone `0`. More: [`assets/zone_grid_diagram.md`](assets/zone_grid_diagram.md).
 
-## Performance
+## Evaluation
 
-| Module | Metric | Value |
+All runs on an NVIDIA RTX 4090 (PyTorch 2.6, CUDA 12.4). Full tables: [`results/performance_benchmarks.md`](results/performance_benchmarks.md).
+
+| What | Result | Conditions |
 |---|---|---|
-| Ball detection (ensemble) | Precision@0.5px | **93.1%** |
-| Ball detection (ensemble) | Recall | **91.4%** |
-| Table keypoints | Mean error | **2.8 px** |
-| Camera calibration | Reprojection error | **1.2 px** |
-| 3D position | Mean error vs Hawk-Eye | **4.2 cm** |
-| Spin estimation | Cosine similarity | **0.87** |
-| Zone classification | Accuracy | **88.4%** |
-| Bounce detection | F1 Score | **95.5%** |
-| Processing speed (A100) | Throughput | **48 fps** |
+| Pipeline completion | 518 of 519 clips (99.8%) | 6 World Tour matches, 30,417 frames |
+| Runtime | 73.5 s per clip on average | Same 519 clips, 635.7 min total |
+| Reprojection error after the physics fit | Median 3.25 px | Clips that pass the geometry gate, same run |
+| Event identity | 18 / 18 correct | Human-labelled bounce / no-contact cases, regression test |
+| Reference clip | 2 bounces at frames 13 and 24 (zones a1′, a1) | Matches the golden regression record (fixed torch / cuDNN / GPU environment) |
 
----
+Pipeline changes are measured against blind human labels before they ship: the Rule B contact classifier was adopted
+this way, and three alternative detector-identity fixes were rejected on the same evidence.
 
-## Research Foundation
+## Tech stack
 
-Building on:
+| Layer | Used |
+|---|---|
+| Language | Python 3.10 |
+| Deep learning | PyTorch 2.6 (CUDA 12.4), loaded through `torch.hub` |
+| Detection models | SegFormer++ B2 + WASB (ball), SegFormer++ B2 + HRNet (table), from Kienzle et al. |
+| Geometry and fitting | NumPy, SciPy (`least_squares`), OpenCV, scikit-learn (DBSCAN) |
+| Synthetic training data | MuJoCo 3.3.2, for the uplifting model |
+| Rendering | Matplotlib, imageio |
+| Hardware | NVIDIA RTX 4090 |
 
-> *"Uplifting Table Tennis: A Robust, Real-World Application for 3D Trajectory and Spin Estimation"*
-> Kienzle et al., **WACV 2026**
+## Repository structure
 
----
+```
+README.md
+docs/       architecture, methodology, design decisions, data formats
+results/    performance_benchmarks.md, sample_outputs.md
+assets/     demo/, detection/, uplifting/ figures; architecture, pipeline and zone diagrams
+```
 
-## Future Directions
+## Design choices and roadmap
 
-- **Real-time inference** via TensorRT/ONNX export (target: ≥60 fps on RTX 4080)
-- **Web dashboard** for coach and athlete session review
-- **Multi-match player profiling** and longitudinal trend analysis
-- **Automated opponent scouting** from tournament footage
-- **Mobile deployment** via quantised models (Core ML / TFLite)
-- **Multi-sport generalisation** — badminton, squash trajectory recovery
+- **Physics over learned depth.** A gravity parabola plus camera-ray intersection keeps every 3D point consistent with the
+  observed 2D track and with ballistic motion; the learned model contributes where it is strongest, as a height prior.
+- **Bounces from 2D first.** Detecting contacts on the image track before fitting 3D removes the circular dependency
+  between finding bounces and fitting arcs.
+- **Gate the camera, not the output.** Each clip's calibration is validated before 3D is produced, so downstream
+  analytics run on geometry that passed the check.
+- **Roadmap:** a coaching assistant that turns zone sequences into written tactical feedback (retrieval over coaching
+  material plus an LLM), 3D ground truth from multi-camera capture for metric accuracy, a drag and Magnus-effect flight
+  model, and faster inference.
 
----
+## Credits
 
-<div align="center">
-
-*Built at the intersection of computer vision, sports science, and AI coaching systems.*
-
-</div>
+- Kienzle, Ludwig, Lorenz, Satoh, Lienhart. *Uplifting Table Tennis: A Robust, Real-World Application for 3D Trajectory
+  and Spin Estimation.* WACV 2026. Code: [KieDani/UpliftingTableTennis](https://github.com/KieDani/UpliftingTableTennis).
+- WASB and HRNet authors for the detector backbones.
+- Footage: World Table Tennis (WTT) and ITTF broadcasts.
